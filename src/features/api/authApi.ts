@@ -27,13 +27,20 @@ if (!API_BASE_URL) {
   throw new Error("VITE_API_BASE_URL is not defined in your .env file");
 }
 
-// Enhanced base query with Chrome-specific headers
+// Enhanced base query with Chrome-specific headers and token handling
 const enhancedBaseQuery = fetchBaseQuery({
   baseUrl: `${API_BASE_URL}/user`,
   credentials: "include",
   prepareHeaders: (headers, { getState, endpoint }) => {
     try {
+      const state = getState() as RootState;
       const browserInfo: BrowserInfo = getBrowserInfo();
+
+      // Add stored token to Authorization header
+      const token = state.auth.token || localStorage.getItem("auth_token");
+      if (token) {
+        headers.set("Authorization", `Bearer ${token}`);
+      }
 
       // Add Chrome-specific headers for FedCM compatibility
       if (browserInfo.isChrome) {
@@ -81,8 +88,11 @@ export const authApi = createApi({
       async onQueryStarted(_, { queryFulfilled, dispatch }) {
         try {
           const result = await queryFulfilled;
-          if (result.data.user) {
-            dispatch(userLoggedIn({ user: result.data.user }));
+          if (result.data.user && result.data.token) {
+            dispatch(userLoggedIn({ 
+              user: result.data.user, 
+              token: result.data.token 
+            }));
             console.log("✅ Google login successful");
           }
         } catch (error) {
@@ -107,16 +117,29 @@ export const authApi = createApi({
         method: "GET",
       }),
       providesTags: ["User"],
-      async onQueryStarted(_, { queryFulfilled, dispatch }) {
+      async onQueryStarted(_, { queryFulfilled, dispatch, getState }) {
         try {
           const result = await queryFulfilled;
           if (result.data.user) {
-            dispatch(userLoggedIn({ user: result.data.user }));
+            const state = getState() as RootState;
+            const currentToken = state.auth.token || localStorage.getItem("auth_token");
+            dispatch(userLoggedIn({ 
+              user: result.data.user, 
+              token: currentToken || undefined 
+            }));
           }
-        } catch (error) {
+        } catch (error: any) {
           console.log("Load user failed:", error);
-          dispatch(userLoggedOut());
-          clearAuthStorage();
+          // Only clear auth if it's a definitive auth error (401, 403)
+          // Don't clear on network errors or other issues
+          if (error?.status === 401 || error?.status === 403) {
+            console.log("Authentication failed, clearing auth state");
+            dispatch(userLoggedOut());
+            clearAuthStorage();
+          } else {
+            console.log("Network or other error, keeping auth state intact");
+            // Keep the user logged in but log the error
+          }
         }
       },
     }),

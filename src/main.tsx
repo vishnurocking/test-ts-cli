@@ -4,23 +4,20 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App";
 import { Provider, useSelector } from "react-redux";
-import { appStore } from "./app/store";
+import { appStore, persistor } from "./app/store";
+import { PersistGate } from "redux-persist/integration/react";
 import { Toaster } from "./components/ui/sonner";
-import { useLoadUserQuery } from "./features/api/authApi";
 import LoadingSpinner from "./components/LoadingSpinner";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import type { RootState } from "./types";
 
 // App initializer component for startup logic
 const AppInitializer = (): JSX.Element => {
-  // Trigger the API call to load user data
-  useLoadUserQuery();
+  // Get auth state - no automatic API calls here
+  const { isLoading: authLoading } = useSelector((state: RootState) => state.auth);
 
-  // Get reliable loading state from auth slice
-  const { loading } = useSelector((state: RootState) => state.auth);
-
-  // Show spinner while loading, otherwise show app
-  if (loading) {
+  // Show spinner only during Redux persist rehydration
+  if (authLoading) {
     return <LoadingSpinner />;
   }
 
@@ -41,7 +38,9 @@ createRoot(rootElement).render(
   <StrictMode>
     <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || ""}>
       <Provider store={appStore}>
-        <AppInitializer />
+        <PersistGate loading={<LoadingSpinner />} persistor={persistor}>
+          <AppInitializer />
+        </PersistGate>
       </Provider>
     </GoogleOAuthProvider>
   </StrictMode>
