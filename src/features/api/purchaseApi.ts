@@ -85,8 +85,8 @@ export const purchaseApi = createApi({
         console.log("📚 My Learning Response:", response);
 
         // Ensure courses have required fields for Course component
-        if (response?.courses) {
-          response.courses = response.courses.map((course: any) => ({
+        if (response?.data) {
+          response.data = response.data.map((course: any) => ({
             ...course,
             // Ensure required fields are present
             courseId: course.courseId || course.course_id,
@@ -97,6 +97,10 @@ export const purchaseApi = createApi({
               "/default-course.png",
             coursePrice: course.coursePrice || course.amount || 0,
           }));
+        }
+        // Keep data field for new API structure
+        if (response?.courses && !response?.data) {
+          response.data = response.courses;
         }
 
         return response;

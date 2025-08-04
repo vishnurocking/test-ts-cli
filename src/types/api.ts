@@ -1,12 +1,11 @@
 // ts-client/src/types/api.ts
 // API request and response types
 
-// Generic API Response
+// Generic API Response - TypeScript only
 export interface ApiResponse<T = any> {
   success: boolean;
   message?: string;
   data?: T;
-  courses?: T; // Backward compatibility
   error?: string;
 }
 

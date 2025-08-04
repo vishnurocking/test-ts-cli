@@ -1,52 +1,41 @@
 // ts-client/src/pages/learner/LanguageDashboard.tsx
+// Updated to use active lessons directly - TypeScript only
 
-import { useGetUnitsQuery } from "@/features/api/freeLessonsApi";
+import { useGetActiveLessonsQuery } from "@/features/api/freeLessonsApi";
 import { useGetUserProgressQuery } from "@/features/api/userProgressApi";
-import { useSelector } from "react-redux";
-import { selectCurrentUnit } from "@/features/languageLearningSlice";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { BookOpen, Clock, Trophy, ArrowRight, Play } from "lucide-react";
+import { BookOpen, Clock, Trophy, ArrowRight, Play, Star } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import type { Unit, UnitProgress } from "@/types";
+import type { FreeLesson } from "@/types";
 
-interface UnitTitle {
-  en: string;
-  hi: string;
-}
-
-interface NextLesson {
-  unitId: number;
-  lessonId: string;
-}
-
-interface UnitCardProps {
-  unit: Unit;
-  progress?: UnitProgress;
-  onUnitClick: () => void;
+interface LessonCardProps {
+  lesson: FreeLesson;
+  isCompleted?: boolean;
+  onLessonClick: () => void;
 }
 
 const LanguageDashboard = (): JSX.Element => {
   const navigate = useNavigate();
-  const currentUnit = useSelector(selectCurrentUnit);
 
-  // Fetch data using our new API hooks
+  // Fetch active lessons directly
   const {
-    data: units,
-    isLoading: unitsLoading,
-    error: unitsError,
-  } = useGetUnitsQuery();
+    data: lessons,
+    isLoading: lessonsLoading,
+    error: lessonsError,
+  } = useGetActiveLessonsQuery();
+  
   const { data: progress, isLoading: progressLoading } =
     useGetUserProgressQuery();
 
-  if (unitsLoading || progressLoading) {
+  if (lessonsLoading || progressLoading) {
     return <LoadingSpinner />;
   }
 
-  if (unitsError) {
+  if (lessonsError) {
     return (
       <div className="max-w-4xl mx-auto p-6">
         <div className="text-center text-red-600">
@@ -57,35 +46,48 @@ const LanguageDashboard = (): JSX.Element => {
     );
   }
 
-  // Calculate overall progress
-  const totalLessons =
-    units?.reduce((sum, unit) => sum + (unit.totalLessons || 0), 0) || 0;
+  // Group lessons by unit for better organization
+  const lessonsByUnit = lessons?.reduce((acc, lesson) => {
+    const unitId = lesson.unitId || 'general';
+    if (!acc[unitId]) {
+      acc[unitId] = [];
+    }
+    acc[unitId].push(lesson);
+    return acc;
+  }, {} as Record<string, FreeLesson[]>) || {};
+
+  // Calculate progress stats
+  const totalLessons = lessons?.length || 0;
   const completedLessons = progress?.totalLessonsCompleted || 0;
-  const overallProgress =
-    totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+  const overallProgress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
 
-  // Find next lesson to continue
-  const getNextLesson = (): NextLesson | null => {
-    if (!units || !progress) return null;
-
-    // Simple logic: first incomplete lesson in order
-    for (const unit of units) {
-      const unitProgress = progress.unitProgress?.find(
-        (up) => up.unitId === unit.unitId
-      );
-      const completedInUnit = unitProgress?.completed || 0;
-
-      if (completedInUnit < unit.totalLessons) {
-        return {
-          unitId: unit.unitId,
-          lessonId: `${unit.unitId}.${completedInUnit + 1}`,
-        };
+  // Find next lesson (first incomplete lesson)
+  const getNextLesson = (): FreeLesson | null => {
+    if (!lessons || !progress) return null;
+    
+    // Sort lessons by lesson order and find first incomplete
+    const sortedLessons = lessons.sort((a, b) => a.lessonOrder - b.lessonOrder);
+    
+    for (const lesson of sortedLessons) {
+      const isCompleted = progress.completedLessons?.includes(lesson.lessonId);
+      if (!isCompleted) {
+        return lesson;
       }
     }
     return null;
   };
 
   const nextLesson = getNextLesson();
+
+  // Get difficulty color
+  const getDifficultyColor = (difficulty: string) => {
+    switch (difficulty) {
+      case 'beginner': return 'bg-green-100 text-green-800';
+      case 'intermediate': return 'bg-yellow-100 text-yellow-800';
+      case 'advanced': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
 
   return (
     <div className="max-w-6xl mx-auto p-4 md:p-6 pb-20 md:pb-6">
@@ -154,12 +156,15 @@ const LanguageDashboard = (): JSX.Element => {
           <CardContent>
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-semibold">
-                  Next: Lesson {nextLesson.lessonId}
-                </p>
+                <p className="font-semibold">{nextLesson.title}</p>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Unit {nextLesson.unitId} • Ready to start
+                  {nextLesson.estimatedTime} minutes • {nextLesson.difficulty}
                 </p>
+                {nextLesson.description && (
+                  <p className="text-sm text-gray-500 mt-1">
+                    {nextLesson.description}
+                  </p>
+                )}
               </div>
               <Button
                 onClick={() => navigate(`/learn/lesson/${nextLesson.lessonId}`)}
@@ -172,92 +177,114 @@ const LanguageDashboard = (): JSX.Element => {
         </Card>
       )}
 
-      {/* Units Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {units?.map((unit) => (
-          <UnitCard
-            key={unit.unitId}
-            unit={unit}
-            progress={progress?.unitProgress?.find(
-              (up) => up.unitId === unit.unitId
-            )}
-            onUnitClick={() => navigate(`/learn/unit/${unit.unitId}`)}
-          />
+      {/* Lessons by Unit */}
+      <div className="space-y-8">
+        {Object.entries(lessonsByUnit).map(([unitId, unitLessons]) => (
+          <div key={unitId}>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">
+              Unit {unitId === 'general' ? 'General' : unitId}
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {unitLessons.map((lesson) => (
+                <LessonCard
+                  key={lesson.lessonId}
+                  lesson={lesson}
+                  isCompleted={progress?.completedLessons?.includes(lesson.lessonId)}
+                  onLessonClick={() => navigate(`/learn/lesson/${lesson.lessonId}`)}
+                />
+              ))}
+            </div>
+          </div>
         ))}
       </div>
+
+      {/* If no lessons grouped by units, show all lessons */}
+      {Object.keys(lessonsByUnit).length === 0 && lessons && lessons.length > 0 && (
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">
+            Available Lessons
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {lessons.map((lesson) => (
+              <LessonCard
+                key={lesson.lessonId}
+                lesson={lesson}
+                isCompleted={progress?.completedLessons?.includes(lesson.lessonId)}
+                onLessonClick={() => navigate(`/learn/lesson/${lesson.lessonId}`)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {(!lessons || lessons.length === 0) && (
+        <Card className="text-center py-12">
+          <CardContent>
+            <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+              No lessons available
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400">
+              Check back later for new learning content.
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
 
-// Unit Card Component
-const UnitCard = ({ unit, progress, onUnitClick }: UnitCardProps): JSX.Element => {
-  const completedLessons = progress?.completed || 0;
-  const totalLessons = unit.totalLessons || 0;
-  const unitProgress =
-    totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
-
-  const getUnitTitle = (unitId: number): UnitTitle => {
-    const titles: Record<number, UnitTitle> = {
-      1: { en: "Basic Greetings", hi: "बुनियादी अभिवादन" },
-      2: { en: "Numbers & Time", hi: "संख्याएं और समय" },
-      3: { en: "Family & Relations", hi: "परिवार और रिश्ते" },
-    };
-    return titles[unitId] || { en: `Unit ${unitId}`, hi: `इकाई ${unitId}` };
+// Lesson Card Component
+const LessonCard = ({ lesson, isCompleted, onLessonClick }: LessonCardProps): JSX.Element => {
+  const getDifficultyColor = (difficulty: string) => {
+    switch (difficulty) {
+      case 'beginner': return 'bg-green-100 text-green-800';
+      case 'intermediate': return 'bg-yellow-100 text-yellow-800';
+      case 'advanced': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
   };
 
-  const unitTitle = getUnitTitle(unit.unitId);
-  const isCompleted = completedLessons === totalLessons;
-  const isStarted = completedLessons > 0;
-
   return (
-    <Card
-      className={`cursor-pointer transition-all duration-200 hover:shadow-lg ${
-        isCompleted
-          ? "border-green-300 bg-green-50 dark:bg-green-900/10"
-          : isStarted
-          ? "border-purple-300 bg-purple-50 dark:bg-purple-900/10"
-          : "hover:border-gray-300"
+    <Card 
+      className={`cursor-pointer transition-all hover:shadow-md ${
+        isCompleted ? 'border-green-200 bg-green-50 dark:bg-green-900/20' : ''
       }`}
-      onClick={onUnitClick}
+      onClick={onLessonClick}
     >
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">Unit {unit.unitId}</CardTitle>
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between mb-2">
+          <h3 className="font-semibold text-sm leading-tight">
+            {lesson.title}
+          </h3>
           {isCompleted && (
-            <Badge variant="default" className="bg-green-500">
-              <Trophy className="h-3 w-3 mr-1" />
-              Complete
-            </Badge>
+            <Star className="h-4 w-4 text-green-500 fill-current" />
           )}
         </div>
-        <div>
-          <h3 className="font-semibold text-gray-900 dark:text-gray-100">
-            {unitTitle.en}
-          </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            {unitTitle.hi}
+        
+        <div className="flex items-center gap-2 mb-3">
+          <Badge variant="secondary" className={getDifficultyColor(lesson.difficulty)}>
+            {lesson.difficulty}
+          </Badge>
+        </div>
+        
+        <div className="flex items-center text-xs text-gray-500 space-x-2">
+          <Clock className="h-3 w-3" />
+          <span>{lesson.estimatedTime} min</span>
+          {lesson.vocabulary && (
+            <>
+              <span>•</span>
+              <span>{lesson.vocabulary.length} words</span>
+            </>
+          )}
+        </div>
+        
+        {lesson.description && (
+          <p className="text-xs text-gray-600 dark:text-gray-400 mt-2 line-clamp-2">
+            {lesson.description}
           </p>
-        </div>
-      </CardHeader>
-
-      <CardContent>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-600 dark:text-gray-400">Progress</span>
-            <span className="font-semibold">
-              {completedLessons}/{totalLessons} lessons
-            </span>
-          </div>
-
-          <Progress value={unitProgress} className="h-2" />
-
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-500">
-              {unitProgress}% complete
-            </span>
-            <ArrowRight className="h-4 w-4 text-gray-400" />
-          </div>
-        </div>
+        )}
       </CardContent>
     </Card>
   );

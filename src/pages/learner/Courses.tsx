@@ -18,8 +18,8 @@ const Courses = (): JSX.Element => {
             ? Array.from({ length: 8 }).map((_, index) => (
                 <CourseSkeleton key={index} />
               ))
-            : data?.courses &&
-              data.courses.map((course) => (
+            : data?.data &&
+              data.data.map((course) => (
                 // Using `course.courseId` as the key is a React best practice
                 <Course key={course.courseId} course={course} />
               ))}

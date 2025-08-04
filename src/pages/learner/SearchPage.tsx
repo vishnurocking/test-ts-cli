@@ -22,7 +22,7 @@ const SearchPage = (): JSX.Element => {
     sortByPrice,
   });
 
-  const isEmpty = !isLoading && (data?.courses?.length === 0);
+  const isEmpty = !isLoading && (data?.data?.length === 0);
 
   const handleFilterChange = (categories: string[], price: string): void => {
     setSelectedCategories(categories);
@@ -37,7 +37,7 @@ const SearchPage = (): JSX.Element => {
           {/* A slightly clearer message */}
           {isLoading
             ? "Searching..."
-            : `${data?.courses?.length || 0} results found`}
+            : `${data?.data?.length || 0} results found`}
         </p>
       </div>
       <div className="flex flex-col md:flex-row gap-10">
@@ -50,7 +50,7 @@ const SearchPage = (): JSX.Element => {
           ) : isEmpty ? (
             <CourseNotFound />
           ) : (
-            data?.courses?.map((course: Course) => (
+            data?.data?.map((course: Course) => (
               // Use course.courseId for the key
               <SearchResult key={course.courseId} course={course} />
             ))

@@ -74,7 +74,7 @@ export interface Course {
   courseThumbnail?: string;
   courseThumbnailPublicId?: string;
   creator: string;
-  isPublished: boolean | string;
+  isPublished: boolean; // Always boolean in TypeScript version
   createdAt: string;
   
   // Enhanced fields
@@ -85,6 +85,7 @@ export interface Course {
   estimatedDuration?: number;
   tags?: string[];
   isActive?: boolean;
+  enrolledStudents?: string[]; // Added from sample data
   
   // GSI attributes
   GSI1PK?: string;
@@ -132,14 +133,15 @@ export interface CourseProgress {
 }
 
 export interface FreeLesson {
-  PK: string;
-  SK: string;
+  PK?: string; // Optional for API responses
+  SK?: string; // Optional for API responses
   lessonId: string;
-  unitId: string;
+  unitId?: string; // Optional in TypeScript version
   lessonOrder: number;
   title: string;
   titleHindi?: string;
   description?: string;
+  descriptionHindi?: string; // Added from sample data
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   estimatedTime: number;
   prerequisites?: string[];
@@ -229,4 +231,13 @@ export interface ExerciseResult {
   difficulty?: number;
   confidence?: number;
   timestamp?: string;
+}
+
+// Progress tracking
+export interface UnitProgress {
+  unitId: string;
+  completedLessons: number;
+  totalLessons: number;
+  progressPercentage: number;
+  lastAccessedLesson?: string;
 }

@@ -9,7 +9,7 @@ const MyLearning = (): JSX.Element => {
   const { data, isLoading } = useGetMyLearningQuery();
 
   // The data now comes directly from our new endpoint
-  const myLearning = data?.courses || [];
+  const myLearning = data?.data || [];
 
   return (
     <div className="max-w-7xl mx-auto my-10 px-4">

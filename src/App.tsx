@@ -26,6 +26,7 @@ import {
 import PurchaseCourseProtectedRoute from "./components/PurchaseCourseProtectedRoute";
 import { ThemeProvider } from "./components/ThemeProvider";
 import ApiTest from "./components/ApiTest";
+import ApiIntegrationTest from "./components/ApiIntegrationTest";
 import LanguageDashboard from "./pages/learner/LanguageDashboard";
 import UnitView from "./pages/learner/UnitView";
 import LessonInterface from "./pages/learner/LessonInterface";
@@ -49,6 +50,10 @@ const appRouter = createBrowserRouter([
       {
         path: "api-test",
         element: <ApiTest />,
+      },
+      {
+        path: "api-integration-test",
+        element: <ApiIntegrationTest />,
       },
       {
         path: "test-learning-flow",

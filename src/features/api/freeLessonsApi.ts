@@ -1,5 +1,5 @@
 // ts-client/src/features/api/freeLessonsApi.ts
-// Free lessons API with TypeScript support
+// Free lessons API - TypeScript only, no backward compatibility
 
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import type { 
@@ -16,58 +16,35 @@ if (!API_BASE_URL) {
 
 export const freeLessonsApi = createApi({
   reducerPath: "freeLessonsApi",
-  tagTypes: ["Units", "Lessons", "LessonDetail"],
+  tagTypes: ["Lessons", "LessonDetail"],
   baseQuery: fetchBaseQuery({
     baseUrl: `${API_BASE_URL}/freelessons`,
     credentials: "include",
   }),
   endpoints: (builder) => ({
-    // Get all learning units - matching JS version
-    getUnits: builder.query<ApiResponse<any>, void>({
-      query: () => "/units",
-      providesTags: ["Units"],
-      transformResponse: (response: any) => response.units || [],
+    // Get active lessons - TypeScript backend only
+    getActiveLessons: builder.query<FreeLesson[], void>({
+      query: () => "/active",
+      providesTags: ["Lessons"],
+      transformResponse: (response: ApiResponse<FreeLesson[]>) => {
+        // TypeScript backend returns { success: true, data: [...] }
+        return response.data || [];
+      },
     }),
 
-    // Get lessons for a specific unit
-    getUnitLessons: builder.query<ApiResponse<{ unitId: string; lessons: FreeLesson[] }>, string>({
-      query: (unitId) => `/unit/${unitId}`,
-      providesTags: (result, error, unitId) => [
-        { type: "Lessons", id: unitId },
-      ],
-      transformResponse: (response: any) => ({
-        unitId: response.unitId,
-        lessons: response.lessons || [],
-      }),
-    }),
-
-    // Get detailed lesson content with exercises - matching JS version
-    getLesson: builder.query<ApiResponse<FreeLesson>, string>({
+    // Get detailed lesson content with exercises
+    getLesson: builder.query<FreeLesson, string>({
       query: (lessonId) => `/lesson/${lessonId}`,
       providesTags: (result, error, lessonId) => [
         { type: "LessonDetail", id: lessonId },
       ],
-      transformResponse: (response: any) => response.lesson,
+      transformResponse: (response: ApiResponse<FreeLesson>) => {
+        return response.data as FreeLesson;
+      },
     }),
 
-    // Prefetch next lesson (for smooth navigation)
-    prefetchLesson: builder.query<ApiResponse<FreeLesson>, string>({
-      query: (lessonId) => `/lesson/${lessonId}`,
-      transformResponse: (response: any) => response.lesson,
-    }),
-
-    // Keep these for backwards compatibility
-    getFreeLesson: builder.query<ApiResponse<FreeLesson>, string>({
-      query: (lessonId) => `/${lessonId}`,
-      providesTags: ["LessonDetail"],
-    }),
-
-    getAllUnits: builder.query<ApiResponse<any[]>, void>({
-      query: () => "/units",
-      providesTags: ["Units"],
-    }),
-
-    searchLessons: builder.query<ApiResponse<FreeLesson[]>, LessonSearchParams>({
+    // Search lessons with parameters
+    searchLessons: builder.query<FreeLesson[], LessonSearchParams>({
       query: (params) => {
         const queryParams = new URLSearchParams();
         if (params.unitId) queryParams.append('unitId', params.unitId);
@@ -77,18 +54,16 @@ export const freeLessonsApi = createApi({
         return `/search?${queryParams.toString()}`;
       },
       providesTags: ["Lessons"],
+      transformResponse: (response: ApiResponse<FreeLesson[]>) => {
+        return response.data || [];
+      },
     }),
   }),
 });
 
 export const {
-  useGetUnitsQuery,
-  useGetUnitLessonsQuery,
+  useGetActiveLessonsQuery,
   useGetLessonQuery,
-  usePrefetchLessonQuery,
   useLazyGetLessonQuery,
-  // Keep old exports for compatibility
-  useGetFreeLessonQuery,
-  useGetAllUnitsQuery,
   useSearchLessonsQuery,
 } = freeLessonsApi;

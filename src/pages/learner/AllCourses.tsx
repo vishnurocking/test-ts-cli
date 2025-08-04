@@ -61,8 +61,8 @@ const AllCourses = (): JSX.Element => {
   } = useGetMyLearningQuery();
 
   // Extract data from API responses
-  const publishedCourses = publishedData?.courses || [];
-  const myLearningCourses = myLearningData?.courses || [];
+  const publishedCourses = publishedData?.data || [];
+  const myLearningCourses = myLearningData?.data || [];
 
   // Create array of purchased course IDs for filtering
   const purchasedCourseIds = useMemo(

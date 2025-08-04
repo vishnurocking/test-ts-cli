@@ -18,12 +18,16 @@ export const publicApi = createApi({
     // CRITICAL: Notice there is NO `credentials: "include"` here for public endpoints
   }),
   endpoints: (builder) => ({
-    // We will move the public endpoint definition here.
+    // Get published courses - TypeScript only
     getPublishedCourse: builder.query<ApiResponse<Course[]>, void>({
       query: () => ({
-        url: "/course/published-courses", // Full path from base
+        url: "/course/published-courses",
         method: "GET",
       }),
+      transformResponse: (response: ApiResponse<Course[]>) => {
+        // TypeScript backend returns { success: true, data: [...] }
+        return response;
+      },
     }),
 
     // Keep these for future use

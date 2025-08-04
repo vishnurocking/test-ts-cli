@@ -73,7 +73,7 @@ const CourseTable = (): JSX.Element => {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {data?.courses?.map((course: Course) => (
+          {data?.data?.map((course: Course) => (
             <TableRow key={course.courseId}>
               <TableCell className="font-medium">
                 ₹{course.coursePrice || "Free"}
