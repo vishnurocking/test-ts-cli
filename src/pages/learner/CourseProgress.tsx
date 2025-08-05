@@ -30,7 +30,7 @@ const CourseProgress = (): JSX.Element => {
   const [
     inCompleteCourse,
     { data: markInCompleteData, isSuccess: inCompletedSuccess },
-  ] = useInCompletCourseMutation();
+  ] = useInCompleteCourseMutation();
 
   // This useEffect can be simplified, as refetching is now automatic.
   useEffect(() => {

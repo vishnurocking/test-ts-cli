@@ -1,8 +1,8 @@
 // ts-client/src/features/api/courseApi.ts
 // Course API with TypeScript support
 
-import { createApi } from "@reduxjs/toolkit/query/react";
-import { createBaseQuery } from "./baseApi";
+import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { getBrowserInfo } from "@/utils/browserUtils";
 import type { 
   CreateCourseRequest, 
   UpdateCourseRequest,
@@ -24,7 +24,22 @@ export const courseApi = createApi({
     "CourseDetail",
     "PublishedCourses",
   ],
-  baseQuery: createBaseQuery("/course"),
+  baseQuery: fetchBaseQuery({
+    baseUrl: `${import.meta.env.VITE_API_BASE_URL}/course`,
+    credentials: "include", // Use cookies only, matching JavaScript legacy version
+    prepareHeaders: (headers) => {
+      // Add browser detection headers for debugging (no auth tokens)
+      const browserInfo = getBrowserInfo();
+      if (browserInfo.isChrome) {
+        headers.set("X-Browser", "Chrome");
+      } else if (browserInfo.name === "Firefox") {
+        headers.set("X-Browser", "Firefox");
+      }
+      headers.set("X-Request-Timestamp", new Date().toISOString());
+      return headers;
+    },
+    timeout: 5000,
+  }),
   endpoints: (builder) => ({
     createCourse: builder.mutation<ApiResponse, CreateCourseRequest>({
       query: ({ courseTitle, category }) => ({
