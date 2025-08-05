@@ -1,27 +1,19 @@
 // ts-client/src/features/api/courseProgressApi.ts
 // Course progress API with TypeScript support
 
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { createApi } from "@reduxjs/toolkit/query/react";
+import { createBaseQuery } from "./baseApi";
 import type { 
   UpdateProgressRequest,
   ApiResponse,
   CourseProgress
 } from "@/types";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
-if (!API_BASE_URL) {
-  throw new Error("VITE_API_BASE_URL is not defined in your .env file");
-}
-
 export const courseProgressApi = createApi({
   reducerPath: "courseProgressApi", 
   // STEP 1: Define the tag type for our progress data
   tagTypes: ["CourseProgress"],
-  baseQuery: fetchBaseQuery({
-    baseUrl: `${API_BASE_URL}/progress`,
-    credentials: "include",
-  }),
+  baseQuery: createBaseQuery("/progress"),
   endpoints: (builder) => ({
     getCourseProgress: builder.query<ApiResponse<CourseProgress>, string>({
       query: (courseId) => ({

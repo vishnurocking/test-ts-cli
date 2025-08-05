@@ -1,26 +1,18 @@
 // ts-client/src/features/api/userProgressApi.ts
 // User progress API with TypeScript support
 
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { createApi } from "@reduxjs/toolkit/query/react";
+import { createBaseQuery } from "./baseApi";
 import type { 
   ApiResponse, 
   UserProgress,
   UpdateLessonProgressRequest
 } from "@/types";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
-if (!API_BASE_URL) {
-  throw new Error("VITE_API_BASE_URL is not defined in your .env file");
-}
-
 export const userProgressApi = createApi({
   reducerPath: "userProgressApi",
   tagTypes: ["UserProgress", "LessonProgress"],
-  baseQuery: fetchBaseQuery({
-    baseUrl: `${API_BASE_URL}/userprogress`,
-    credentials: "include",
-  }),
+  baseQuery: createBaseQuery("/userprogress"),
   endpoints: (builder) => ({
     // Get user's overall progress summary
     getUserProgress: builder.query<ApiResponse<UserProgress>, void>({

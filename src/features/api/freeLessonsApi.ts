@@ -1,26 +1,18 @@
 // ts-client/src/features/api/freeLessonsApi.ts
 // Free lessons API - TypeScript only, no backward compatibility
 
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { createApi } from "@reduxjs/toolkit/query/react";
+import { createBaseQuery } from "./baseApi";
 import type { 
   ApiResponse, 
   FreeLesson,
   LessonSearchParams
 } from "@/types";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
-if (!API_BASE_URL) {
-  throw new Error("VITE_API_BASE_URL is not defined in your .env file");
-}
-
 export const freeLessonsApi = createApi({
   reducerPath: "freeLessonsApi",
   tagTypes: ["Lessons", "LessonDetail"],
-  baseQuery: fetchBaseQuery({
-    baseUrl: `${API_BASE_URL}/freelessons`,
-    credentials: "include",
-  }),
+  baseQuery: createBaseQuery("/freelessons"),
   endpoints: (builder) => ({
     // Get active lessons - TypeScript backend only
     getActiveLessons: builder.query<FreeLesson[], void>({

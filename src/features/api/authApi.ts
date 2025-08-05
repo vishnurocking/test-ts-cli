@@ -1,7 +1,8 @@
 // ts-client/src/features/api/authApi.ts
 // Enhanced authentication API with Chrome FedCM compatibility
 
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { createApi } from "@reduxjs/toolkit/query/react";
+import { createBaseQuery } from "./baseApi";
 import { userLoggedIn, userLoggedOut } from "../authSlice";
 import { isChrome, getBrowserInfo } from "@/utils/browserUtils";
 import { clearAuthCookies, clearAuthStorage } from "@/utils/cookieUtils";
@@ -21,62 +22,10 @@ import { courseApi } from "./courseApi";
 import { purchaseApi } from "./purchaseApi";
 import { courseProgressApi } from "./courseProgressApi";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
-if (!API_BASE_URL) {
-  throw new Error("VITE_API_BASE_URL is not defined in your .env file");
-}
-
-// Enhanced base query with Chrome-specific headers and token handling
-const enhancedBaseQuery = fetchBaseQuery({
-  baseUrl: `${API_BASE_URL}/user`,
-  credentials: "include",
-  prepareHeaders: (headers, { getState, endpoint }) => {
-    try {
-      const state = getState() as RootState;
-      const browserInfo: BrowserInfo = getBrowserInfo();
-
-      // Add stored token to Authorization header
-      const token = state.auth.token || localStorage.getItem("auth_token");
-      if (token) {
-        headers.set("Authorization", `Bearer ${token}`);
-      }
-
-      // Add Chrome-specific headers for FedCM compatibility
-      if (browserInfo.isChrome) {
-        headers.set("X-Browser", "Chrome");
-        if (browserInfo.chromeVersion) {
-          headers.set("X-Chrome-Version", browserInfo.chromeVersion);
-        }
-
-        // Indicate FedCM capability
-        if (browserInfo.supportsFedCM) {
-          headers.set("X-Supports-FedCM", "true");
-        }
-      } else if (browserInfo.name === "Firefox") {
-        headers.set("X-Browser", "Firefox");
-      }
-
-      // Add request timestamp for debugging
-      headers.set("X-Request-Timestamp", new Date().toISOString());
-    } catch (error) {
-      // Continue without browser headers if detection fails
-      console.warn(
-        "Browser detection failed, continuing without browser headers:",
-        error
-      );
-    }
-
-    return headers;
-  },
-  // Enhanced timeout for Chrome FedCM issues
-  timeout: isChrome() ? 10000 : 5000,
-});
-
 export const authApi = createApi({
   reducerPath: "authApi",
   tagTypes: ["User"],
-  baseQuery: enhancedBaseQuery,
+  baseQuery: createBaseQuery("/user"),
 
   endpoints: (builder) => ({
     googleLogin: builder.mutation<AuthResponse, GoogleLoginRequest>({
@@ -271,8 +220,11 @@ export const authApi = createApi({
       async onQueryStarted(_, { queryFulfilled, dispatch }) {
         try {
           const result = await queryFulfilled;
-          if (result.data.user) {
-            dispatch(userLoggedIn({ user: result.data.user }));
+          if (result.data.user && result.data.token) {
+            dispatch(userLoggedIn({ 
+              user: result.data.user,
+              token: result.data.token 
+            }));
           }
         } catch (error) {
           console.error("Login error:", error);
