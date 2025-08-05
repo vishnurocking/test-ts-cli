@@ -83,7 +83,7 @@ export const courseApi = createApi({
     }),
 
     // FIXED: Enhanced getCourseById with proper cache tags
-    getCourseById: builder.query<ApiResponse<Course>, string>({
+    getCourseById: builder.query<{ course: Course; lectures: Lecture[] }, string>({
       query: (courseId) => ({
         url: `/${courseId}`,
         method: "GET",
@@ -94,10 +94,10 @@ export const courseApi = createApi({
         { type: "CourseDetail", id: courseId }, // New tag for purchase fix
         { type: "Course", id: courseId }, // New tag for purchase fix
       ],
-      // Add transformResponse for debugging
-      transformResponse: (response: ApiResponse<Course>) => {
+      // Fix transformResponse to extract data field (matching other APIs)
+      transformResponse: (response: ApiResponse<{ course: Course; lectures: Lecture[] }>) => {
         console.log("🔄 Course API Response:", response);
-        return response;
+        return response.data; // Extract data field to match frontend expectation
       },
     }),
 

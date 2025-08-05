@@ -53,9 +53,10 @@ const CourseDetail = (): JSX.Element => {
   if (isError || !data?.course) return <h1>Failed to load course details.</h1>;
 
   const course = data.course;
+  const lectures = data.lectures || [];
   const purchased = course.purchased;
 
-  const previewLecture = course.lectures?.find((lec) => lec.videoUrl);
+  const previewLecture = lectures.find((lec) => lec.videoUrl);
 
   const handleGoToCourse = (): void => {
     navigate(`/course-progress/${courseId}`);
@@ -107,11 +108,11 @@ const CourseDetail = (): JSX.Element => {
             <CardHeader>
               <CardTitle>Course Content</CardTitle>
               <CardDescription>
-                {course.lectures.length} lectures visible to you
+                {lectures.length} lectures visible to you
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {course.lectures.map((lecture, idx) => (
+              {lectures.map((lecture, idx) => (
                 <div key={idx} className="flex items-center gap-3 text-sm">
                   <PlayCircle size={14} />
                   <p>{lecture.lectureTitle}</p>
