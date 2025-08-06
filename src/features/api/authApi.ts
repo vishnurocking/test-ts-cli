@@ -1,19 +1,20 @@
 // ts-client/src/features/api/authApi.ts
-// Enhanced authentication API with Chrome FedCM compatibility
+// Enhanced authentication API with Chrome FedCM compatibility - FIXED
 
 import { createApi } from "@reduxjs/toolkit/query/react";
 import { createBaseQuery } from "./baseApi";
 import { userLoggedIn, userLoggedOut } from "../authSlice";
 import { isChrome, getBrowserInfo } from "@/utils/browserUtils";
 import { clearAuthCookies, clearAuthStorage } from "@/utils/cookieUtils";
-import type { 
-  GoogleLoginRequest, 
-  AuthResponse, 
+import type {
+  GoogleLoginRequest,
+  AuthResponse,
   UpdateProfileRequest,
   RegisterRequest,
   LoginRequest,
   ApiResponse,
-  BrowserInfo
+  BrowserInfo,
+  User,
 } from "@/types";
 import type { RootState } from "@/app/store";
 
@@ -28,6 +29,63 @@ export const authApi = createApi({
   baseQuery: createBaseQuery("/user"),
 
   endpoints: (builder) => ({
+    // Register user
+    registerUser: builder.mutation<AuthResponse, RegisterRequest>({
+      query: (userData) => ({
+        url: "register",
+        method: "POST",
+        body: userData,
+      }),
+      async onQueryStarted(_, { queryFulfilled, dispatch }) {
+        try {
+          const result = await queryFulfilled;
+          if (result.data.success && result.data.user && result.data.token) {
+            dispatch(
+              userLoggedIn({
+                user: result.data.user,
+                token: result.data.token,
+              })
+            );
+            // Store token for future requests
+            localStorage.setItem("auth_token", result.data.token);
+            console.log("✅ Registration successful");
+          }
+        } catch (error) {
+          console.error("Registration error:", error);
+          clearAuthStorage();
+        }
+      },
+    }),
+
+    // Login user
+    loginUser: builder.mutation<AuthResponse, LoginRequest>({
+      query: (credentials) => ({
+        url: "login",
+        method: "POST",
+        body: credentials,
+      }),
+      async onQueryStarted(_, { queryFulfilled, dispatch }) {
+        try {
+          const result = await queryFulfilled;
+          if (result.data.success && result.data.user && result.data.token) {
+            dispatch(
+              userLoggedIn({
+                user: result.data.user,
+                token: result.data.token,
+              })
+            );
+            // Store token for future requests
+            localStorage.setItem("auth_token", result.data.token);
+            console.log("✅ Login successful");
+          }
+        } catch (error) {
+          console.error("Login error:", error);
+          clearAuthStorage();
+        }
+      },
+    }),
+
+    // Google OAuth login
     googleLogin: builder.mutation<AuthResponse, GoogleLoginRequest>({
       query: (credential) => ({
         url: "google-login",
@@ -37,11 +95,15 @@ export const authApi = createApi({
       async onQueryStarted(_, { queryFulfilled, dispatch }) {
         try {
           const result = await queryFulfilled;
-          if (result.data.user && result.data.token) {
-            dispatch(userLoggedIn({ 
-              user: result.data.user, 
-              token: result.data.token 
-            }));
+          if (result.data.success && result.data.user && result.data.token) {
+            dispatch(
+              userLoggedIn({
+                user: result.data.user,
+                token: result.data.token,
+              })
+            );
+            // Store token for future requests
+            localStorage.setItem("auth_token", result.data.token);
             console.log("✅ Google login successful");
           }
         } catch (error) {
@@ -51,16 +113,11 @@ export const authApi = createApi({
       },
     }),
 
-    updateUser: builder.mutation<ApiResponse, UpdateProfileRequest>({
-      query: (updatedData) => ({
-        url: "profile/update",
-        method: "PUT",
-        body: updatedData,
-      }),
-      invalidatesTags: ["User"],
-    }),
-
-    loadUser: builder.query<ApiResponse, void>({
+    // Load user profile - FIXED
+    loadUser: builder.query<
+      { success: boolean; message: string; user: User },
+      void
+    >({
       query: () => ({
         url: "profile",
         method: "GET",
@@ -69,165 +126,101 @@ export const authApi = createApi({
       async onQueryStarted(_, { queryFulfilled, dispatch, getState }) {
         try {
           const result = await queryFulfilled;
-          if (result.data.user) {
+          console.log("Profile API response:", result.data);
+
+          if (result.data.success && result.data.user) {
             const state = getState() as RootState;
-            const currentToken = state.auth.token || localStorage.getItem("auth_token");
-            dispatch(userLoggedIn({ 
-              user: result.data.user, 
-              token: currentToken || undefined 
-            }));
+            const currentToken =
+              state.auth.token || localStorage.getItem("auth_token");
+
+            // Update Redux state with fresh user data
+            dispatch(
+              userLoggedIn({
+                user: result.data.user,
+                token: currentToken || "",
+              })
+            );
+
+            console.log("✅ User profile loaded successfully");
           }
         } catch (error: any) {
-          console.log("Load user failed:", error);
-          // Only clear auth if it's a definitive auth error (401, 403)
-          // Don't clear on network errors or other issues
-          if (error?.status === 401 || error?.status === 403) {
-            console.log("Authentication failed, clearing auth state");
+          console.error("Load user error:", error);
+
+          // Handle authentication errors
+          if (error.status === 401) {
+            console.log("🔐 Authentication failed - clearing auth state");
             dispatch(userLoggedOut());
             clearAuthStorage();
-          } else {
-            console.log("Network or other error, keeping auth state intact");
-            // Keep the user logged in but log the error
-          }
-        }
-      },
-    }),
-
-    // Enhanced logout with Chrome-specific FedCM handling
-    logoutUser: builder.mutation<ApiResponse, void>({
-      query: () => {
-        const browserInfo: BrowserInfo = getBrowserInfo();
-
-        return {
-          url: "logout",
-          method: "GET",
-          // Add Chrome-specific query params
-          params: browserInfo.isChrome
-            ? {
-                browser: "chrome",
-                version: browserInfo.chromeVersion || "",
-              }
-            : {},
-        };
-      },
-      async onQueryStarted(_, { dispatch, queryFulfilled }) {
-        const browserInfo: BrowserInfo = getBrowserInfo();
-
-        try {
-          console.log("📡 Attempting API logout...");
-
-          // Set timeout for Chrome FedCM issues
-          const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(
-              () => reject(new Error("Logout timeout")),
-              browserInfo.isChrome ? 8000 : 5000
-            );
-          });
-
-          // Race between API call and timeout
-          await Promise.race([queryFulfilled, timeoutPromise]);
-
-          console.log("✅ API logout successful");
-
-          // Invalidate all auth-related caches
-          dispatch(authApi.util.invalidateTags(["User"]));
-          dispatch(
-            courseApi.util.invalidateTags([
-              "Refetch_Creator_Course",
-              "Refetch_Lecture",
-            ])
-          );
-          dispatch(purchaseApi.util.invalidateTags(["PurchaseStatus"]));
-          dispatch(courseProgressApi.util.invalidateTags(["CourseProgress"]));
-
-          // Clear Redux auth state
-          dispatch(userLoggedOut());
-
-          // Chrome-specific cleanup
-          if (browserInfo.isChrome) {
-            console.log("🍪 Performing Chrome-specific cleanup...");
-            setTimeout(() => {
-              clearAuthCookies();
-            }, 100);
-          }
-        } catch (error: any) {
-          console.error("❌ API logout failed:", error);
-
-          // Always clear local state regardless of API failure
-          dispatch(userLoggedOut());
-
-          // Check for Chrome-specific errors
-          const isChromeError =
-            browserInfo.isChrome &&
-            (error.message?.includes("timeout") ||
-              error.message?.includes("AbortError") ||
-              error.message?.includes("FedCM") ||
-              error.name === "AbortError");
-
-          if (isChromeError) {
-            console.log("🔍 Chrome-specific logout error detected");
-
-            // Aggressive cleanup for Chrome
             clearAuthCookies();
-            clearAuthStorage();
-
-            // Clear FedCM credentials if available
-            if (
-              navigator.credentials &&
-              (navigator.credentials as any).preventSilentAccess
-            ) {
-              try {
-                await (navigator.credentials as any).preventSilentAccess();
-                console.log("✅ FedCM credentials cleared");
-              } catch (fedCMError) {
-                console.warn("⚠️ FedCM cleanup failed:", fedCMError);
-              }
-            }
           }
+        }
+      },
+      // Transform response to match expected format
+      transformResponse: (response: any) => {
+        if (response.success && response.data) {
+          return {
+            success: response.success,
+            message: response.message,
+            user: response.data,
+          };
+        }
+        return response;
+      },
+    }),
 
-          // Invalidate caches even on error
-          dispatch(authApi.util.invalidateTags(["User"]));
-          dispatch(
-            courseApi.util.invalidateTags([
-              "Refetch_Creator_Course",
-              "Refetch_Lecture",
-            ])
-          );
-          dispatch(purchaseApi.util.invalidateTags(["PurchaseStatus"]));
-          dispatch(courseProgressApi.util.invalidateTags(["CourseProgress"]));
+    // Update user profile
+    updateUser: builder.mutation<ApiResponse, UpdateProfileRequest>({
+      query: (updatedData) => ({
+        url: "profile/update",
+        method: "PUT",
+        body: updatedData,
+      }),
+      invalidatesTags: ["User"],
+      async onQueryStarted(_, { queryFulfilled, dispatch, getState }) {
+        try {
+          const result = await queryFulfilled;
+          if (result.data.success && result.data.data) {
+            const state = getState() as RootState;
+            const currentToken = state.auth.token;
 
-          // Re-throw for component handling
-          throw error;
+            // Update Redux state with updated user data
+            dispatch(
+              userLoggedIn({
+                user: result.data.data,
+                token: currentToken || "",
+              })
+            );
+
+            console.log("✅ Profile updated successfully");
+          }
+        } catch (error) {
+          console.error("Update profile error:", error);
         }
       },
     }),
 
-    // Development-only authentication methods
-    registerUser: builder.mutation<AuthResponse, RegisterRequest>({
-      query: (inputData) => ({
-        url: "register",
-        method: "POST",
-        body: inputData,
-      }),
-    }),
-
-    loginUser: builder.mutation<AuthResponse, LoginRequest>({
-      query: (inputData) => ({
-        url: "login",
-        method: "POST",
-        body: inputData,
+    // Logout user
+    logoutUser: builder.mutation<ApiResponse, void>({
+      query: () => ({
+        url: "logout",
+        method: "GET",
       }),
       async onQueryStarted(_, { queryFulfilled, dispatch }) {
         try {
-          const result = await queryFulfilled;
-          if (result.data.user && result.data.token) {
-            dispatch(userLoggedIn({ 
-              user: result.data.user,
-              token: result.data.token 
-            }));
-          }
+          await queryFulfilled;
+          console.log("✅ Logout successful");
         } catch (error) {
-          console.error("Login error:", error);
+          console.error("Logout error:", error);
+        } finally {
+          // Always clear auth state regardless of API response
+          dispatch(userLoggedOut());
+          clearAuthStorage();
+          clearAuthCookies();
+
+          // Invalidate all cached API data
+          dispatch(courseApi.util.resetApiState());
+          dispatch(purchaseApi.util.resetApiState());
+          dispatch(courseProgressApi.util.resetApiState());
         }
       },
     }),
@@ -235,10 +228,10 @@ export const authApi = createApi({
 });
 
 export const {
-  useGoogleLoginMutation,
-  useUpdateUserMutation,
   useRegisterUserMutation,
   useLoginUserMutation,
-  useLogoutUserMutation,
+  useGoogleLoginMutation,
   useLoadUserQuery,
+  useUpdateUserMutation,
+  useLogoutUserMutation,
 } = authApi;
