@@ -1,5 +1,5 @@
 // ts-client/src/pages/learner/Profile.tsx
-// Fixed Profile component with corrected imports
+// Enhanced Profile component with Google profile picture support
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -18,8 +18,8 @@ import {
   useLoadUserQuery,
   useUpdateUserMutation,
 } from "@/features/api/authApi";
-import { useAppSelector } from "@/app/hooks"; // Now this import will work
-import { Loader2, RefreshCw, AlertCircle } from "lucide-react";
+import { useAppSelector } from "@/app/hooks";
+import { Loader2, RefreshCw, AlertCircle, Camera, User } from "lucide-react";
 import { useEffect, useState, ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -35,6 +35,10 @@ const Profile = (): JSX.Element => {
   const [nickname, setNickname] = useState<string>("");
   const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 
+  // Image loading states
+  const [imageLoading, setImageLoading] = useState<boolean>(true);
+  const [imageError, setImageError] = useState<boolean>(false);
+
   // Get auth state from Redux
   const authState = useAppSelector((state) => state.auth);
   const { isAuthenticated, user: reduxUser } = authState;
@@ -42,7 +46,7 @@ const Profile = (): JSX.Element => {
   // Load user profile from API
   const { data, isLoading, isError, error, refetch, isFetching } =
     useLoadUserQuery(undefined, {
-      skip: !isAuthenticated, // Skip query if not authenticated
+      skip: !isAuthenticated,
     });
 
   const [
@@ -58,16 +62,73 @@ const Profile = (): JSX.Element => {
   // Use API data first, fallback to Redux state
   const user = data?.user || reduxUser;
 
+  // Enhanced profile picture URL resolution
+  const getProfileImageUrl = (user: any): string | null => {
+    if (!user) return null;
+
+    // Priority order for image sources
+    const sources = [
+      user.photoUrl, // Frontend format from API
+      user.photo_url, // Database format
+      user.avatar_url, // Legacy format (if exists)
+    ].filter(Boolean);
+
+    const imageUrl = sources[0] || null;
+
+    // Validate URL format
+    if (imageUrl && isValidImageUrl(imageUrl)) {
+      return imageUrl;
+    }
+
+    return null;
+  };
+
+  // Validate image URL
+  const isValidImageUrl = (url: string): boolean => {
+    try {
+      const parsedUrl = new URL(url);
+      return ["http:", "https:"].includes(parsedUrl.protocol);
+    } catch {
+      return false;
+    }
+  };
+
+  // Generate user initials for fallback
+  const getUserInitials = (user: any): string => {
+    if (!user?.name) return "UN";
+
+    const nameParts = user.name.trim().split(" ");
+    if (nameParts.length >= 2) {
+      return `${nameParts[0][0]}${nameParts[1][0]}`.toUpperCase();
+    }
+    return user.name.substring(0, 2).toUpperCase();
+  };
+
+  // Handle image loading success
+  const handleImageLoad = (): void => {
+    setImageLoading(false);
+    setImageError(false);
+    console.log("✅ Profile image loaded successfully");
+  };
+
+  // Handle image loading error
+  const handleImageError = (): void => {
+    setImageLoading(false);
+    setImageError(true);
+    const imageUrl = getProfileImageUrl(user);
+    console.log("❌ Profile image failed to load:", imageUrl);
+  };
+
   // Debug logging
   useEffect(() => {
-    console.log("Profile Debug Info:");
-    console.log("- isAuthenticated:", isAuthenticated);
-    console.log("- Redux user:", reduxUser);
-    console.log("- API loading:", isLoading);
-    console.log("- API error:", error);
-    console.log("- API data:", data);
-    console.log("- Final user:", user);
-  }, [isAuthenticated, reduxUser, isLoading, error, data, user]);
+    console.log("🖼️ Profile Image Debug:");
+    console.log("- User data:", user);
+    console.log("- photoUrl:", user?.photoUrl);
+    console.log("- photo_url:", user?.photo_url);
+    console.log("- Final image URL:", getProfileImageUrl(user));
+    console.log("- Image loading:", imageLoading);
+    console.log("- Image error:", imageError);
+  }, [user, imageLoading, imageError]);
 
   // Set nickname when user data is available
   useEffect(() => {
@@ -75,6 +136,14 @@ const Profile = (): JSX.Element => {
       setNickname(user.nickname || user.name || "");
     }
   }, [user]);
+
+  // Reset image states when user changes
+  useEffect(() => {
+    if (user) {
+      setImageLoading(true);
+      setImageError(false);
+    }
+  }, [user?.photoUrl, user?.photo_url]);
 
   // Handle update success/error
   useEffect(() => {
@@ -180,6 +249,9 @@ const Profile = (): JSX.Element => {
     );
   }
 
+  const profileImageUrl = getProfileImageUrl(user);
+  const userInitials = getUserInitials(user);
+
   // Render profile content
   return (
     <div className="max-w-4xl mx-auto px-4 my-10">
@@ -194,21 +266,75 @@ const Profile = (): JSX.Element => {
       </div>
 
       <div className="flex flex-col md:flex-row items-center md:items-start gap-8 my-5">
-        <Avatar className="h-24 w-24 md:h-32 md:w-32">
-          <AvatarImage
-            src={user.photoUrl || "/default-avatar.png"}
-            alt={user.name}
-          />
-          <AvatarFallback className="text-lg">
-            {user.name?.substring(0, 2).toUpperCase() || "UN"}
-          </AvatarFallback>
-        </Avatar>
+        {/* Enhanced Avatar with Google profile picture support */}
+        <div className="relative">
+          <Avatar className="h-24 w-24 md:h-32 md:w-32 ring-4 ring-blue-100 dark:ring-blue-900">
+            {profileImageUrl && !imageError ? (
+              <AvatarImage
+                src={profileImageUrl}
+                alt={`${user.name}'s profile picture`}
+                onLoad={handleImageLoad}
+                onError={handleImageError}
+                className={`transition-opacity duration-300 ${
+                  imageLoading ? "opacity-0" : "opacity-100"
+                }`}
+              />
+            ) : null}
+
+            <AvatarFallback
+              className={`text-lg font-semibold transition-all duration-300 ${
+                profileImageUrl && !imageError
+                  ? "bg-transparent text-transparent"
+                  : "bg-gradient-to-br from-blue-500 to-purple-600 text-white"
+              }`}
+            >
+              {imageLoading && profileImageUrl ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                userInitials
+              )}
+            </AvatarFallback>
+          </Avatar>
+
+          {/* Profile picture indicator */}
+          <div className="absolute -bottom-1 -right-1">
+            {profileImageUrl && !imageError ? (
+              <div className="bg-green-500 rounded-full p-1.5 ring-2 ring-white dark:ring-gray-900">
+                <Camera className="h-3 w-3 text-white" />
+              </div>
+            ) : (
+              <div className="bg-gray-400 rounded-full p-1.5 ring-2 ring-white dark:ring-gray-900">
+                <User className="h-3 w-3 text-white" />
+              </div>
+            )}
+          </div>
+
+          {/* Image loading overlay */}
+          {imageLoading && profileImageUrl && (
+            <div className="absolute inset-0 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+            </div>
+          )}
+        </div>
 
         <div className="flex-grow">
           <ProfileInfo label="Name" value={user.name} />
           <ProfileInfo label="Nickname" value={user.nickname} />
           <ProfileInfo label="Email" value={user.email} />
           <ProfileInfo label="Role" value={user.role?.toUpperCase()} />
+
+          {/* Display profile picture source info */}
+          {profileImageUrl && (
+            <ProfileInfo
+              label="Profile Picture"
+              value={
+                profileImageUrl.includes("googleusercontent.com")
+                  ? "Google Profile Picture"
+                  : "Custom Profile Picture"
+              }
+            />
+          )}
+
           {user.points !== undefined && (
             <ProfileInfo label="Points" value={user.points.toString()} />
           )}
@@ -267,6 +393,34 @@ const Profile = (): JSX.Element => {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+          {/* Image debug info (development only) */}
+          {process.env.NODE_ENV === "development" && (
+            <details className="mt-4 text-xs text-gray-500">
+              <summary className="cursor-pointer">Debug: Image Info</summary>
+              <div className="mt-2 p-2 bg-gray-50 rounded">
+                <p>
+                  <strong>Profile Image URL:</strong>{" "}
+                  {profileImageUrl || "None"}
+                </p>
+                <p>
+                  <strong>Image Loading:</strong> {imageLoading.toString()}
+                </p>
+                <p>
+                  <strong>Image Error:</strong> {imageError.toString()}
+                </p>
+                <p>
+                  <strong>User Initials:</strong> {userInitials}
+                </p>
+                <p>
+                  <strong>photoUrl:</strong> {user.photoUrl || "undefined"}
+                </p>
+                <p>
+                  <strong>photo_url:</strong> {user.photo_url || "undefined"}
+                </p>
+              </div>
+            </details>
+          )}
         </div>
       </div>
     </div>
